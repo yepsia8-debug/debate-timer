@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debate Timer</title>
+    
+    <style>
+        /* --- 1. RESET & VARIABEL WARNA --- */
+        :root {
+            --bg-default: #f8f9fa;      
+            --bg-overtime: #fdf4e3;     
+            --text-default: #343a40;    
+            --text-warning: #f08c00;    
+            --text-danger: #e03131;     
+            --bar-track: #e9ecef;       
+            --bar-warning: #f08c00;     
+            
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.5);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-default);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            padding: 20px 0;
+            transition: background-color 1.2s ease;
+            color: var(--text-default);
+        }
+
+        .container {
+            text-align: center;
+            width: 90%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- 2. TAMPILAN WAKTU --- */
+        .timer-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .timer-display {
+            font-size: clamp(5rem, 18vw, 14rem); 
+            font-weight: 800;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            display: flex;
+            justify-content: center;
+            align-items: baseline;
+            transition: color 1s ease;
+            letter-spacing: -2px;
+        }
+
+        .timer-display span {
+            font-size: clamp(2.2rem, 8vw, 6rem); 
+            margin: 0 6px;
+            font-weight: 600;
+            opacity: 0.8;
+        }
+
+        @keyframes pulseWarning {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        
+        body.state-warning .timer-display {
+            animation: pulseWarning 1s infinite ease-in-out;
+        }
+
+        /* --- 3. PROGRESS BAR --- */
+        .progress-container {
+            width: 100%;
+            height: 10px;
+            background-color: var(--bar-track);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 25px;
+            transition: background-color 0.8s ease, box-shadow 0.8s ease;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 100%;
+            position: absolute;
+            right: 0;
+            top: 0;
+            background-color: var(--bar-warning);
+            border-radius: 10px;
+            transition: width 0.1s linear, background-color 1s ease;
+            box-shadow: 0 0 10px rgba(240, 140, 0, 0.4);
+        }
+
+        .progress-container.overtime {
+            background-color: transparent;
+            background-image: repeating-linear-gradient(
+                45deg,
+                var(--text-danger),
+                var(--text-danger) 12px,
+                #ff8787 12px,
+                #ff8787 24px
+            );
+            background-size: 200% 100%;
+            animation: moveStripes 1.2s linear infinite;
+            box-shadow: 0 0 15px rgba(224, 49, 49, 0.4);
+        }
+
+        .progress-container.overtime .progress-bar {
+            display: none; 
+        }
+
+        @keyframes moveStripes {
+            0% { background-position: 0 0; }
+            100% { background-position: 34px 0; } 
+        }
+
+        /* --- 4. PRESET BUTTONS (BARU!) --- */
+        .presets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 35px;
+            padding: 0 10px;
+        }
+
+        .preset-btn {
+            background-color: white;
+            color: var(--text-default);
+            border: 2px solid #e9ecef;
+            cursor: pointer;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.25s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            font-family: inherit;
+        }
+
+        .preset-btn:hover {
+            border-color: var(--text-warning);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(240, 140, 0, 0.15);
+        }
+
+        .preset-btn:active {
+            transform: translateY(0) scale(0.96);
+        }
+
+        /* Highlight tombol preset yang sedang aktif */
+        .preset-btn.active {
+            background-color: var(--text-default);
+            color: white;
+            border-color: var(--text-default);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        body.state-warning .preset-btn.active {
+            background-color: var(--text-warning);
+            border-color: var(--text-warning);
+            box-shadow: 0 4px 15px rgba(240, 140, 0, 0.3);
+        }
+
+        body.state-overtime .preset-btn {
+            background-color: rgba(255, 255, 255, 0.6);
+        }
+        body.state-overtime .preset-btn.active {
+            background-color: var(--text-danger);
+            border-color: var(--text-danger);
+            color: white;
+        }
+
+        /* --- 5. KONTROL TOMBOL --- */
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            padding: 12px 20px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            transition: background 0.8s ease, border 0.8s ease;
+        }
+
+        body.state-overtime .controls {
+            background: rgba(255, 255, 255, 0.5);
+            border-color: rgba(224, 49, 49, 0.15);
+        }
+
+        button.btn-icon {
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.25s ease;
+            color: var(--text-default);
+            position: relative;
+        }
+
+        button.btn-icon:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+        }
+
+        button.btn-icon:active {
+            transform: translateY(0) scale(0.92);
+        }
+
+        svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+            pointer-events: none;
+        }
+
+        #btnPlayPause {
+            background-color: var(--text-default);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        #btnPlayPause:hover {
+            background-color: #212529;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }
+
+        /* --- 6. STATE WARNA DINAMIS --- */
+        body.state-warning { color: var(--text-warning); }
+        body.state-warning .progress-bar { background-color: var(--bar-warning); }
+        
+        body.state-overtime { 
+            background-color: var(--bg-overtime); 
+            color: var(--text-danger); 
+        }
+
+        /* --- 7. MODAL SETTINGS --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 35px 30px;
+            border-radius: 24px;
+            width: 90%;
+            max-width: 340px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            color: #212529;
+            transform: scale(0.9) translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-content h3 {
+            margin-bottom: 25px;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .input-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .input-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .input-wrapper label {
+            font-size: 0.75rem;
+            margin-bottom: 8px;
+            color: #868e96;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            padding: 15px 0;
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-align: center;
+            border: 2px solid #e9ecef;
+            border-radius: 14px;
+            outline: none;
+            transition: all 0.2s;
+            color: var(--text-default);
+            background-color: #f8f9fa;
+        }
+
+        .input-wrapper input:focus {
+            border-color: var(--text-warning);
+            background-color: white;
+            box-shadow: 0 0 0 4px rgba(240, 140, 0, 0.1);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .modal-actions button {
+            flex: 1;
+            padding: 15px;
+            font-weight: 600;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            color: white;
+            width: auto;
+            height: auto;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-cancel { 
+            background-color: #f1f3f5; 
+            color: #495057; 
+        }
+        .btn-cancel:hover { 
+            background-color: #e9ecef; 
+            transform: translateY(-2px);
+        }
+
+        .btn-save { 
+            background-color: #212529; 
+        }
+        .btn-save:hover { 
+            background-color: #000000; 
+            transform: translateY(-2px);
+        }
+
+        /* --- RESPONSIVE (HP KECIL) --- */
+        @media (max-width: 480px) {
+            .preset-btn {
+                padding: 8px 14px;
+                font-size: 0.85rem;
+            }
+            .controls {
+                gap: 8px;
+                padding: 10px 15px;
+            }
+            .btn-icon {
+                width: 44px;
+                height: 44px;
+            }
+            svg {
+                width: 22px;
+                height: 22px;
+            }
+        }
+
+    </style>
+</head>
+<body id="bodyElement">
+
+    <div class="container">
+        <div class="timer-wrapper">
+            <div class="timer-display" id="timer">
+                0<span>m</span>00<span>s</span>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <!-- PRESET BUTTONS -->
+        <div class="presets" id="presetsContainer">
+            <button class="preset-btn" data-time="300">5 Menit</button>
+            <button class="preset-btn" data-time="120">2 Menit</button>
+            <button class="preset-btn" data-time="60">1 Menit</button>
+            <button class="preset-btn" data-time="30">30 Detik</button>
+            <button class="preset-btn" data-time="2">2 Detik</button>
+        </div>
+
+        <div class="controls">
+            <button class="btn-icon" id="btnPlayPause" title="Play/Pause">
+                <svg id="iconPlay" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <svg id="iconPause" style="display:none;" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <button class="btn-icon" id="btnReset" title="Reset">
+                <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            </button>
+            <button class="btn-icon" id="btnSettings" title="Pengaturan Kustom">
+                <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            </button>
+            <button class="btn-icon" id="btnFullscreen" title="Layar Penuh">
+                <svg id="iconExpand" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                <svg id="iconCompress" style="display:none;" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <h3>Atur Waktu Kustom</h3>
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <label>Menit</label>
+                    <input type="number" id="inputMinutes" min="0" max="60" value="1">
+                </div>
+                <div class="input-wrapper">
+                    <label>Detik</label>
+                    <input type="number" id="inputSeconds" min="0" max="59" value="0">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" id="btnCancel">Batal</button>
+                <button class="btn-save" id="btnSave">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // --- KONFIGURASI AWAL ---
+            let totalTime = 300; // Default 5 menit
+            let timeLeft = totalTime;
+            let overtimeSeconds = 0; 
+            let isOvertime = false;  
+            let timerInterval = null;
+            let isRunning = false;
+
+            // Elemen DOM
+            const bodyElement = document.getElementById('bodyElement');
+            const timerDisplay = document.getElementById('timer');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const iconPlay = document.getElementById('iconPlay');
+            const iconPause = document.getElementById('iconPause');
+            const iconExpand = document.getElementById('iconExpand');
+            const iconCompress = document.getElementById('iconCompress');
+            
+            const settingsModal = document.getElementById('settingsModal');
+            const inputMinutes = document.getElementById('inputMinutes');
+            const inputSeconds = document.getElementById('inputSeconds');
+            const presetButtons = document.querySelectorAll('.preset-btn');
+
+            // --- FUNGSI UPDATE HIGHLIGHT PRESET ---
+            function updatePresetHighlight() {
+                presetButtons.forEach(btn => {
+                    const btnTime = parseInt(btn.dataset.time);
+                    // Highlight jika timeLeft sama dengan totalTime preset (artinya baru dipilih)
+                    if (btnTime === totalTime && timeLeft === totalTime && !isRunning) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+            }
+
+            // --- FUNGSI UPDATE DISPLAY ---
+            function updateDisplay() {
+                let displayMins, displaySecs;
+
+                if (isOvertime) {
+                    displayMins = Math.floor(overtimeSeconds / 60);
+                    displaySecs = overtimeSeconds % 60;
+                    bodyElement.className = 'state-overtime';
+                    progressContainer.classList.add('overtime');
+                    progressBar.style.width = '0%'; 
+                } else {
+                    displayMins = Math.floor(timeLeft / 60);
+                    displaySecs = timeLeft % 60;
+                    
+                    const percentage = (timeLeft / totalTime) * 100;
+                    progressBar.style.width = percentage + "%";
+                    
+                    if (timeLeft <= 10 && timeLeft > 0) {
+                        bodyElement.className = 'state-warning'; 
+                        if (timeLeft <= 5) playBeep(); 
+                    } else {
+                        bodyElement.className = ''; 
+                    }
+                }
+
+                timerDisplay.innerHTML = `${displayMins}<span>m</span>${displaySecs.toString().padStart(2, '0')}<span>s</span>`;
+                
+                // Update highlight tombol preset setiap kali display berubah
+                updatePresetHighlight();
+            }
+
+            // --- FUNGSI SET WAKTU DARI PRESET ---
+            function setPresetTime(seconds) {
+                clearInterval(timerInterval);
+                isRunning = false;
+                isOvertime = false;
+                overtimeSeconds = 0;
+                totalTime = seconds;
+                timeLeft = seconds;
+                
+                iconPlay.style.display = 'block';
+                iconPause.style.display = 'none';
+                bodyElement.className = '';
+                progressContainer.classList.remove('overtime');
+                
+                updateDisplay();
+            }
+
+            function toggleTimer() {
+                if (isRunning) {
+                    clearInterval(timerInterval);
+                    isRunning = false;
+                    iconPlay.style.display = 'block';
+                    iconPause.style.display = 'none';
+                } else {
+                    if (timeLeft <= 0 && !isOvertime) {
+                        isOvertime = true;
+                        overtimeSeconds = 0;
+                    }
+                    
+                    isRunning = true;
+                    iconPlay.style.display = 'none';
+                    iconPause.style.display = 'block';
+
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                    timerInterval = setInterval(() => {
+                        if (!isOvertime) {
+                            timeLeft--;
+                            if (timeLeft <= 0) {
+                                timeLeft = 0;
+                                isOvertime = true;
+                                overtimeSeconds = 0;
+                                playEndSound(); 
+                            }
+                        } else {
+                            overtimeSeconds++;
+                        }
+                        updateDisplay();
+                    }, 1000);
+                }
+            }
+
+            function resetTimer() {
+                clearInterval(timerInterval);
+                isRunning = false;
+                isOvertime = false;
+                timeLeft = totalTime;
+                overtimeSeconds = 0;
+                iconPlay.style.display = 'block';
+                iconPause.style.display = 'none';
+                bodyElement.className = '';
+                progressContainer.classList.remove('overtime');
+                updateDisplay();
+            }
+
+            function toggleFullScreen() {
+                if (!document.fullscreenElement) {
+                    if (document.documentElement.requestFullscreen) {
+                        document.documentElement.requestFullscreen().catch(e => console.log(e));
+                    } else if (document.documentElement.webkitRequestFullscreen) {
+                        document.documentElement.webkitRequestFullscreen();
+                    } else if (document.documentElement.msRequestFullscreen) {
+                        document.documentElement.msRequestFullscreen();
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                    }
+                }
+            }
+
+            function updateFullscreenIcon() {
+                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    iconExpand.style.display = 'none';
+                    iconCompress.style.display = 'block';
+                } else {
+                    iconExpand.style.display = 'block';
+                    iconCompress.style.display = 'none';
+                }
+            }
+
+            // --- MODAL ---
+            function openSettings() {
+                if (isRunning) toggleTimer(); 
+                inputMinutes.value = Math.floor(totalTime / 60);
+                inputSeconds.value = totalTime % 60;
+                
+                settingsModal.style.display = 'flex';
+                setTimeout(() => {
+                    settingsModal.classList.add('active');
+                }, 10);
+            }
+
+            function closeSettings() {
+                settingsModal.classList.remove('active');
+                setTimeout(() => {
+                    settingsModal.style.display = 'none';
+                }, 300); 
+            }
+
+            function saveSettings() {
+                let newMins = parseInt(inputMinutes.value) || 0;
+                let newSecs = parseInt(inputSeconds.value) || 0;
+
+                if (newSecs > 59) newSecs = 59;
+                if (newMins < 0) newMins = 0;
+                if (newSecs < 0) newSecs = 0;
+
+                let newTotal = (newMins * 60) + newSecs;
+
+                if (newTotal <= 0) {
+                    alert("Waktu tidak boleh 0 detik!");
+                    return;
+                }
+
+                totalTime = newTotal;
+                closeSettings();
+                
+                setTimeout(() => {
+                    resetTimer();
+                }, 300);
+            }
+
+            // --- AUDIO ---
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            function playBeep() {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 800; 
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); 
+                oscillator.stop(audioCtx.currentTime + 0.15); 
+            }
+
+            function playEndSound() {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'square';
+                oscillator.frequency.value = 400; 
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 1.5); 
+            }
+
+            // --- EVENT LISTENERS ---
+            document.getElementById('btnPlayPause').addEventListener('click', toggleTimer);
+            document.getElementById('btnReset').addEventListener('click', resetTimer);
+            document.getElementById('btnSettings').addEventListener('click', openSettings);
+            document.getElementById('btnFullscreen').addEventListener('click', toggleFullScreen);
+            document.getElementById('btnCancel').addEventListener('click', closeSettings);
+            document.getElementById('btnSave').addEventListener('click', saveSettings);
+
+            // Event listener untuk tombol preset
+            presetButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const timeInSeconds = parseInt(this.dataset.time);
+                    setPresetTime(timeInSeconds);
+                });
+            });
+
+            document.addEventListener('fullscreenchange', updateFullscreenIcon);
+            document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
+            document.addEventListener('mozfullscreenchange', updateFullscreenIcon);
+            document.addEventListener('MSFullscreenChange', updateFullscreenIcon);
+
+            settingsModal.addEventListener('click', function(e) {
+                if (e.target === settingsModal) closeSettings();
+            });
+
+            // Inisialisasi tampilan awal
+            updateDisplay();
+        });
+    </script>
+</body>
+</html>
